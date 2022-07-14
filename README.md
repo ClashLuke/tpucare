@@ -18,7 +18,7 @@ from netrc import netrc
 import wandb
 import yaml
 
-from tputils import exec_command, exec_on_tpu, send_to_tpu, start_single
+from tpucare import exec_command, exec_on_tpu, send_to_tpu, start_single
 
 _, _, wandb_key = netrc().authenticators("api.wandb.ai")
 
