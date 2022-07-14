@@ -1,6 +1,6 @@
-# TPUtils
+# TPU Care
 
-Babysit your preemptible TPUs - in python
+Automatically take good care of your preemptible TPUs
 
 ## Usage
 
@@ -121,7 +121,8 @@ def start_fn(ctx: Context, worker: int):
     exec_on_tpu(ZONE, HOST, "bash setup.sh", worker)
 ```
 
-The full executable code can be found in [examples/sweep.py](https://github.com/clashluke/tputils/blob/main/examples/sweep.py).
+The full executable code can be found
+in [examples/sweep.py](https://github.com/clashluke/tputils/blob/main/examples/sweep.py).
 
 Similarly, the `start_fn` could be adapted to start an inference server
 for [HomebrewNLP](https://github.com/HomebrewNLP/HomebrewNLP-Jax/)
