@@ -124,7 +124,7 @@ def recreate(host: str, zone: str, tpu_version: int, preemptible: bool, service_
 
 def start_single(host: str, tpu_version: int, zone: str, preemptible: bool, service_account: str, slices: int,
                  start_fn: typing.Callable[[typing.Any, int], None],
-                 created_callback: typing.Callable[[typing.Any], typing.Any],
+                 creation_callback: typing.Callable[[str, typing.Any], typing.Any],
                  creation_semaphore: typing.Optional[typing.ContextManager] = None):
     _, _, wandb_key = netrc.netrc().authenticators("api.wandb.ai")
 
@@ -136,7 +136,7 @@ def start_single(host: str, tpu_version: int, zone: str, preemptible: bool, serv
         try:
             with creation_semaphore:
                 recreate(host, zone, tpu_version, preemptible, service_account, slices)
-            ctx = created_callback(ctx)
+            ctx = creation_callback(host, ctx)
             threads = [threading.Thread(target=start_fn, args=(ctx, i)) for i in range(slices)]
             for t in threads:
                 t.start()
