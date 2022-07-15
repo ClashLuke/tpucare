@@ -6,13 +6,13 @@ with open('README.md') as f:
 
 setuptools.setup(
     author="Lucas Nestler",
-    author_email="github.tputils@nestler.sh",
+    author_email="github.tpucare@nestler.sh",
     name='tpucare',
     license='BSD',
     description=' Babysit your preemptible TPUs - in python ',
-    version='0.0.1',
+    version='0.0.2',
     long_description=README,
-    url='https://github.com/clashluke/tputils',
+    url='https://github.com/clashluke/tpucare',
     packages=setuptools.find_packages(),
     python_requires=">=3.7",
     long_description_content_type="text/markdown",

@@ -2,25 +2,42 @@
 
 Automatically take good care of your preemptible TPUs
 
-## Usage
+## Features
 
-### Long-running preemptible training
+* **Reliable code execution**: TPU Care starts a TPU, ensures it's set up as specified and continues the experiment
+  whenever the node dies. Think of it like [TerraForm](https://www.terraform.io/) + [Ansible](https://www.ansible.com/)
+  for machine learning.
+* **Maintenance of large swarms**: When running multiple nodes, TPU Care will automatically delete dead instances while
+  keeping as many alive as possible.
+* **Code generation**: To simplify setup, TPU Care efficiently clones your git repository and ensures trustable
+  execution of your `run_command` that continues even during outages.
+* **Optimized management**: When a node dies, TPU Care deletes it within five minutes and creates a new one the second
+  there is capacity.
+
+## Getting Started
+
+### Installation
+
+```BASH
+python3 -m pip install tpucare
+```
+
+### Examples
+
+#### Long-running preemptible training
 
 For example, the following code can be used to create a production-ready v3-256 using
 the [HomebrewNLP-Jax](https://github.com/HomebrewNLP/HomebrewNLP-Jax) codebase (
-see [examples/pod.py](https://github.com/clashluke/tputils/blob/main/examples/pod.py) for an executable version):
+see [examples/pod.py](https://github.com/clashluke/tpucare/blob/main/examples/pod.py) for an executable version):
 
 ```PYTHON
 import dataclasses
 import typing
 from netrc import netrc
 
-import wandb
 import yaml
 
 from tpucare import exec_command, exec_on_tpu, send_to_tpu, start_single
-
-_, _, wandb_key = netrc().authenticators("api.wandb.ai")
 
 
 @dataclasses.dataclass
@@ -88,9 +105,9 @@ def main(service_account: str, tpu_version: int = 3, slices: int = 32, preemptib
                  creation_callback=creation_callback)
 ```
 
-### Sweeps
+#### Sweeps
 
-Similarly, large swarms of instances can be launched trivially using TPUtils. Here, we largely do the same setup as
+Similarly, large swarms of instances can be launched trivially using tpucare. Here, we largely do the same setup as
 above, but call `launch_multiple` instead of `launch_single` which takes the additional argument `tpus` specifying the
 number of TPUs that should be launched and babysit. Depending on capacity and quota, the actual number of TPUs you get
 might be lower than the number of TPUs specified.
@@ -105,10 +122,12 @@ def main(service_account: str, tpus: int, tpu_version: int = 3, slices: int = 32
 However, this would simply launch the same run many times. If you instead plan to register them with a
 [WandB Sweep](https://docs.wandb.ai/guides/sweeps/configuration), we need to modify the `start_fn` to join the wandb
 sweep.\
-By patching in the code below, TPUtils will start and maintain a large swarm of TPUs all working towards the same
+By patching in the code below, tpucare will start and maintain a large swarm of TPUs all working towards the same
 hyperparameter optimization problem.
 
 ```PYTHON
+import wandb
+
 with open("sweep.yaml", 'r') as f:  # sweep config passed straight to wandb
     config = yaml.safe_load(f.read())
 sweep_id = wandb.sweep(config, entity="homebrewnlp", project="gpt")
@@ -122,7 +141,7 @@ def start_fn(ctx: Context, worker: int):
 ```
 
 The full executable code can be found
-in [examples/sweep.py](https://github.com/clashluke/tputils/blob/main/examples/sweep.py).
+in [examples/sweep.py](https://github.com/clashluke/tpucare/blob/main/examples/sweep.py).
 
 Similarly, the `start_fn` could be adapted to start an inference server
 for [HomebrewNLP](https://github.com/HomebrewNLP/HomebrewNLP-Jax/)
