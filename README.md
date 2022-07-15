@@ -2,6 +2,18 @@
 
 Automatically take good care of your preemptible TPUs
 
+## Table of Contents
+
+* [TPU Care](#tpu-care)
+    * [Table of Contents](#table-of-contents)
+    * [Features](#features)
+    * [Getting Started](#getting-started)
+        * [Installation](#installation)
+    * [Examples](#examples)
+        * [Long-running preemptible training](#long-running-preemptible-training)
+        * [Sweeps](#sweeps)
+    * [Citation](#citation)
+
 ## Features
 
 * **Reliable code execution**: TPU Care starts a TPU, ensures it's set up as specified and continues the experiment
@@ -22,9 +34,7 @@ Automatically take good care of your preemptible TPUs
 python3 -m pip install tpucare
 ```
 
-### Examples
-
-#### HomebrewNLP-Jax
+## Examples
 
 We've been using TPU Care for a while at [HomebrewNLP](https://github.com/HomebrewNLP/). In fact, this library is just
 the branched out core of the original production-ready HomebrewNLP code. At HomebrewNLP, there were two major use-cases
@@ -34,7 +44,7 @@ Care: ![PU Output](https://i.imgur.com/LcOm0Bc.png)
 <p align="center">Screenshot from <a href="https://github.com/shawwn/tpunicorn">TPUnicorn</a>, a CLI-based TPU managed software</p>
 In the following sections, you'll learn how we use at massive scale with minimal code effort.
 
-##### Long-running preemptible training
+### Long-running preemptible training
 
 For example, the following code can be used to create a production-ready v3-256 using
 the [HomebrewNLP-Jax](https://github.com/HomebrewNLP/HomebrewNLP-Jax) codebase (
@@ -115,7 +125,7 @@ def main(service_account: str, tpu_version: int = 3, slices: int = 32, preemptib
                  creation_callback=creation_callback)
 ```
 
-##### Sweeps
+### Sweeps
 
 Similarly, large swarms of instances can be launched trivially using tpucare. Here, we largely do the same setup as
 above, but call `launch_multiple` instead of `launch_single` which takes the additional argument `tpus` specifying the
@@ -156,4 +166,18 @@ in [examples/sweep.py](https://github.com/clashluke/tpucare/blob/main/examples/s
 Similarly, the `start_fn` could be adapted to start an inference server
 for [HomebrewNLP](https://github.com/HomebrewNLP/HomebrewNLP-Jax/)
 or [Craiyon](https://huggingface.co/spaces/dalle-mini/dalle-mini) or even execute machine learning unit-tests in
-parallel. 
+parallel.
+
+## Citation
+
+```BIBTEX
+@software{nestler_lucas_2022_6837312,
+  author       = {Nestler, Lucas},
+  title        = {TPU Care},
+  month        = jul,
+  year         = 2022,
+  publisher    = {Zenodo},
+  version      = {0.0.2},
+  doi          = {10.5281/zenodo.6837312},
+  url          = {https://doi.org/10.5281/zenodo.6837312}
+}```
