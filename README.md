@@ -24,7 +24,17 @@ python3 -m pip install tpucare
 
 ### Examples
 
-#### Long-running preemptible training
+#### HomebrewNLP-Jax
+
+We've been using TPU Care for a while at [HomebrewNLP](https://github.com/HomebrewNLP/). In fact, this library is just
+the branched out core of the original production-ready HomebrewNLP code. At HomebrewNLP, there were two major use-cases
+for this library. We started both massive hyperparameter sweeps which consumed 900,000 TPU-core hours within three
+months and stable training on large TPU pods. Below, you can see a list of TPUs which are largely managed by TPU
+Care: ![PU Output](https://i.imgur.com/LcOm0Bc.png)
+<p align="center">Screenshot from <a href="https://github.com/shawwn/tpunicorn">TPUnicorn</a>, a CLI-based TPU managed software</p>
+In the following sections, you'll learn how we use at massive scale with minimal code effort.
+
+##### Long-running preemptible training
 
 For example, the following code can be used to create a production-ready v3-256 using
 the [HomebrewNLP-Jax](https://github.com/HomebrewNLP/HomebrewNLP-Jax) codebase (
@@ -105,7 +115,7 @@ def main(service_account: str, tpu_version: int = 3, slices: int = 32, preemptib
                  creation_callback=creation_callback)
 ```
 
-#### Sweeps
+##### Sweeps
 
 Similarly, large swarms of instances can be launched trivially using tpucare. Here, we largely do the same setup as
 above, but call `launch_multiple` instead of `launch_single` which takes the additional argument `tpus` specifying the
