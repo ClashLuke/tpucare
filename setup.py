@@ -9,14 +9,14 @@ setuptools.setup(
     author_email="github.tpucare@nestler.sh",
     name='tpucare',
     license='BSD',
-    description=' Babysit your preemptible TPUs - in python ',
+    description='Automatically take good care of your preemptible TPUs',
     version='0.0.2',
     long_description=README,
     url='https://github.com/clashluke/tpucare',
     packages=setuptools.find_packages(),
     python_requires=">=3.7",
     long_description_content_type="text/markdown",
-    install_requires=[],
+    install_requires=["google-cloud-tpu", "google-api-python-client", "oauth2client", "google-auth"],
     classifiers=[
         # Trove classifiers
         # (https://pypi.python.org/pypi?%3Aaction=list_classifiers)
