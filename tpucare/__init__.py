@@ -134,8 +134,7 @@ def start_single(host: str, tpu_version: int, zone: str, preemptible: bool, serv
     ctx = None
     while True:
         try:
-            with creation_semaphore:
-                recreate(host, zone, tpu_version, preemptible, service_account, slices)
+            recreate(host, zone, tpu_version, preemptible, service_account, slices, creation_semaphore)
             ctx = creation_callback(host, ctx)
             threads = [threading.Thread(target=start_fn, args=(ctx, i)) for i in range(slices)]
             for t in threads:
