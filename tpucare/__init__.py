@@ -113,7 +113,7 @@ def create_tpu(host: str, zone: str, tpu_version: int, preemptible: bool, servic
 def recreate(host: str, zone: str, tpu_version: int, preemptible: bool, service_account: str, slices: int,
              creation_semaphore: typing.Optional[typing.ContextManager] = None):
     if host in tpu_names(zone, preempted=True, deleting=True):
-        if host not in tpu_names(zone, preempted=False, deleting=False):
+        if host not in tpu_names(zone, preempted=True, deleting=False):
             synchronous_deletion("", host, zone)
         while host in tpu_names(zone, preempted=True, deleting=True):
             time.sleep(5)
