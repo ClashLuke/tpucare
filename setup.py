@@ -16,7 +16,7 @@ setuptools.setup(
     packages=setuptools.find_packages(),
     python_requires=">=3.7",
     long_description_content_type="text/markdown",
-    install_requires=["google-cloud-tpu", "google-api-python-client", "oauth2client", "google-auth"],
+    install_requires=[],
     classifiers=[
         # Trove classifiers
         # (https://pypi.python.org/pypi?%3Aaction=list_classifiers)
