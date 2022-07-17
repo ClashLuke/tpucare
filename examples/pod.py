@@ -55,11 +55,11 @@ def start_fn(ctx: Context, worker: int):
     Ideally, it'd copy necessary files to the TPU and then run those. Here, `exec_command` can be used to create an
     execution command that automatically spawns a `screen` session which persists even when the SSH connection gets cut.
     """
-    send_to_tpu(ctx.zone, ctx.host, "config.yaml", load_config(ctx), worker)
+    send_to_tpu(ctx.host, ctx.zone, "config.yaml", load_config(ctx), worker)
     cmd = exec_command(repository="https://github.com/HomebrewNLP/HomebrewNLP-Jax", wandb_key=wandb_key,
                        branch=ctx.branch)
-    send_to_tpu(ctx.zone, ctx.host, "setup.sh", cmd, worker)
-    exec_on_tpu(ctx.zone, ctx.host, "bash setup.sh", worker)
+    send_to_tpu(ctx.host, ctx.zone, "setup.sh", cmd, worker)
+    exec_on_tpu(ctx.host, ctx.zone, "bash setup.sh", worker)
 
 
 def parse_args():
@@ -92,7 +92,7 @@ def main():
         synchronous_deletion("", args.host, args.zone)
         return
 
-    def creation_callback(ctx: typing.Optional[Context]) -> Context:
+    def creation_callback(host: str, ctx: typing.Optional[Context]) -> Context:
         if ctx is None:  # first invocation
             return Context(retry=0, zone=args.zone, host=args.host, branch=args.branch, run_name=args.run_name,
                            data_path=args.data_path, config_path=args.config_path)

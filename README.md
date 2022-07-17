@@ -102,10 +102,10 @@ def start_fn(ctx: Context, worker: int):
     Ideally, it'd copy necessary files to the TPU and then run those. Here, `exec_command` can be used to create an 
     execution command that automatically spawns a `screen` session which persists even when the SSH connection gets cut.
     """
-    send_to_tpu(ZONE, HOST, "config.yaml", load_config(ctx), worker)
+    send_to_tpu(HOST, ZONE, "config.yaml", load_config(ctx), worker)
     cmd = exec_command(repository="https://github.com/HomebrewNLP/HomebrewNLP-Jax", wandb_key=wandb_key)
-    send_to_tpu(ZONE, HOST, "setup.sh", cmd, worker)
-    exec_on_tpu(ZONE, HOST, "bash setup.sh", worker)
+    send_to_tpu(HOST, ZONE, "setup.sh", cmd, worker)
+    exec_on_tpu(HOST, ZONE, "bash setup.sh", worker)
 
 
 def creation_callback(host: str, ctx: typing.Optional[Context]) -> Context:
@@ -156,8 +156,8 @@ sweep_id = wandb.sweep(config, entity="homebrewnlp", project="gpt")
 def start_fn(ctx: Context, worker: int):
     cmd = exec_command(repository="https://github.com/HomebrewNLP/HomebrewNLP-Jax", wandb_key=wandb_key,
                        run_command=f"/home/ubuntu/.local/bin/wandb agent {sweep_id}")
-    send_to_tpu(ZONE, HOST, "setup.sh", cmd, worker)
-    exec_on_tpu(ZONE, HOST, "bash setup.sh", worker)
+    send_to_tpu(HOST, ZONE, "setup.sh", cmd, worker)
+    exec_on_tpu(HOST, ZONE, "bash setup.sh", worker)
 ```
 
 The full executable code can be found

@@ -21,8 +21,8 @@ class Context:
 def start_fn(ctx: Context, worker: int):
     cmd = exec_command(repository="https://github.com/HomebrewNLP/HomebrewNLP-Jax", wandb_key=wandb_key,
                        run_command=f"/home/ubuntu/.local/bin/wandb agent {ctx.sweep_id}")
-    send_to_tpu(ctx.zone, ctx.host, "setup.sh", cmd, worker)
-    exec_on_tpu(ctx.zone, ctx.host, "bash setup.sh", worker)
+    send_to_tpu(ctx.host, ctx.zone, "setup.sh", cmd, worker)
+    exec_on_tpu(ctx.host, ctx.zone, "bash setup.sh", worker)
 
 
 def parse_args():
