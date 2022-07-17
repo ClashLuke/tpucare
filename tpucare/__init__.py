@@ -34,7 +34,7 @@ def exec_command(repository: str, wandb_key: typing.Optional[str] = None, branch
 
 
 def send_to_tpu(host: str, zone: str, filename_on_tpu: str, command: str, worker: int = 0):
-    with tempfile.NamedTemporaryFile() as f:
+    with tempfile.NamedTemporaryFile(mode='w+') as f:
         f.write(command)
         os.system(f"gcloud alpha compute tpus tpu-vm scp {f.name} ubuntu@{host}:~/{filename_on_tpu} --zone {zone} "
                   f"--worker {worker}")
