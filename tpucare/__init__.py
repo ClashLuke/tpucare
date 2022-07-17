@@ -1,5 +1,5 @@
 import datetime
-import netrc
+import json
 import os
 import subprocess
 import tempfile
@@ -8,11 +8,12 @@ import time
 import typing
 from contextlib import nullcontext
 
-import google.auth
-import googleapiclient.discovery
 
-API = googleapiclient.discovery.build('tpu', 'v1')
-_, PROJECT = google.auth.default()
+def call(cmd: str) -> str:
+    return subprocess.check_output(cmd.split()).rstrip().decode()
+
+
+PROJECT = call("gcloud config get project")
 GLOBAL_DICT = {}
 CACHE_TIME = 10
 
@@ -23,8 +24,7 @@ def exec_command(repository: str, wandb_key: typing.Optional[str] = None, branch
     if path.endswith('.git'):
         path = path[:-len('.git')]
     script = ["sudo apt --fix-missing --fix-broken install -y git python3 python3-pip",
-              f"(rm -rf {path} ; pkill -f python3 ; exit 0)",
-              f"git clone --depth 1 --branch {branch} {repository}",
+              f"(rm -rf {path} ; pkill -f python3 ; exit 0)", f"git clone --depth 1 --branch {branch} {repository}",
               f"cd {path}"]
     if wandb_key is not None:
         script.append("python3 -m pip install wandb")
@@ -43,8 +43,9 @@ def send_to_tpu(host: str, zone: str, filename_on_tpu: str, command: str, worker
 def exec_on_tpu(host: str, zone: str, command: str, worker: int = 0):
     print(f"running '{command}' ...", end='')
     start_time = time.time()
-    ret = subprocess.call(["gcloud", "alpha", "compute", "tpus", "tpu-vm", "ssh", f"ubuntu@{host}",
-                           f"--zone", zone, "--command", command, "--worker", str(worker)])
+    ret = subprocess.call(
+            ["gcloud", "alpha", "compute", "tpus", "tpu-vm", "ssh", f"ubuntu@{host}", f"--zone", zone, "--command",
+             command, "--worker", str(worker)])
     if not ret:
         print(f"done after {time.time() - start_time:.1f}s")
         return
@@ -56,7 +57,7 @@ def all_tpus(zone: str):
     zone = 'projects/' + PROJECT + '/locations/' + zone
     if GLOBAL_DICT.get(f"last_write_{zone}", 0) < time.time() - CACHE_TIME:
         GLOBAL_DICT[f"last_write_{zone}"] = time.time()
-        GLOBAL_DICT[f"tpus_{zone}"] = API.projects().locations().nodes().list(parent=zone).execute().get('nodes', [])
+        GLOBAL_DICT[f"tpus_{zone}"] = json.loads(call(f"gcloud compute tpus list --zone {zone} --format json"))
     return GLOBAL_DICT[f"tpus_{zone}"]
 
 
@@ -65,9 +66,8 @@ def tpu_names(zone: str, preempted: bool = True, deleting: bool = False, prefix:
         try:
             tpus = all_tpus(zone)
             tpus = [t['name'].split('/')[-1] for t in tpus if
-                    "state" in t
-                    and (deleting or t['state'] != "DELETING")
-                    and (preempted or t['state'] != "PREEMPTED")]
+                    "state" in t and (deleting or t['state'] != "DELETING") and (
+                            preempted or t['state'] != "PREEMPTED")]
             return [t for t in tpus if t.startswith(prefix)]
         except KeyboardInterrupt as exc:
             raise exc
@@ -123,8 +123,6 @@ def start_single(host: str, tpu_version: int, zone: str, preemptible: bool, serv
                  start_fn: typing.Callable[[typing.Any, int], None],
                  creation_callback: typing.Callable[[str, typing.Any], typing.Any],
                  creation_semaphore: typing.Optional[typing.ContextManager] = None):
-    _, _, wandb_key = netrc.netrc().authenticators("api.wandb.ai")
-
     if creation_semaphore is None:
         creation_semaphore = nullcontext()
 
@@ -151,13 +149,12 @@ def start_single(host: str, tpu_version: int, zone: str, preemptible: bool, serv
 def start_multiple(prefix: str, tpu_version: int, zone: str, preemptible: bool, service_account: str, slices: int,
                    start_fn: typing.Callable[[typing.Any, int], None],
                    created_callback: typing.Callable[[typing.Any], typing.Any], tpus: int):
-    _, _, wandb_key = netrc.netrc().authenticators("api.wandb.ai")
     procs = []
     creation_semaphore = threading.Semaphore(2)
     for tpu_id in range(tpus):
-        proc = threading.Thread(target=start_single, daemon=True,
-                                args=(f'{prefix}-{tpu_id}', tpu_version, zone, preemptible, service_account, slices,
-                                      start_fn, created_callback, creation_semaphore))
+        proc = threading.Thread(target=start_single, daemon=True, args=(
+                f'{prefix}-{tpu_id}', tpu_version, zone, preemptible, service_account, slices, start_fn,
+                created_callback, creation_semaphore))
         proc.start()
         procs.append(proc)
     while all(t.is_alive() for t in procs):
