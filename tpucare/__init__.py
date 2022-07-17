@@ -115,9 +115,9 @@ def recreate(host: str, zone: str, tpu_version: int, preemptible: bool, service_
     if host in tpu_names(zone, preempted=True, deleting=True):
         if host not in tpu_names(zone, preempted=False, deleting=False):
             synchronous_deletion("", host, zone)
-            create_tpu(host, zone, tpu_version, preemptible, service_account, creation_semaphore, slices)
-    else:
-        create_tpu(host, zone, tpu_version, preemptible, service_account, creation_semaphore, slices)
+        while host in tpu_names(zone, preempted=True, deleting=True):
+            time.sleep(5)
+    create_tpu(host, zone, tpu_version, preemptible, service_account, creation_semaphore, slices)
 
 
 def start_single(host: str, tpu_version: int, zone: str, preemptible: bool, service_account: str, slices: int,
