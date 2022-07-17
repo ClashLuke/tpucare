@@ -11,11 +11,8 @@ from contextlib import nullcontext
 import google.auth
 import googleapiclient.discovery
 
-TIMEOUT_MULTIPLIER = 10
-
 API = googleapiclient.discovery.build('tpu', 'v1')
 _, PROJECT = google.auth.default()
-OLD_DATA_PATH = ""
 GLOBAL_DICT = {}
 CACHE_TIME = 10
 
