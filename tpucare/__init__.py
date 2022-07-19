@@ -23,7 +23,8 @@ def exec_command(repository: str, wandb_key: typing.Optional[str] = None, branch
     path = repository.split('/')[-1]
     if path.endswith('.git'):
         path = path[:-len('.git')]
-    script = ["sudo apt --fix-missing --fix-broken install -y git python3 python3-pip",
+    script = ["sudo apt-get -o DPkg::Lock::Timeout=-1 update",
+              "sudo apt-get -o DPkg::Lock::Timeout=-1 --fix-missing --fix-broken install -y git python3 python3-pip",
               f"(rm -rf {path} ; pkill -f python3 ; exit 0)", f"git clone --depth 1 --branch {branch} {repository}",
               f"cd {path}"]
     if wandb_key is not None:
