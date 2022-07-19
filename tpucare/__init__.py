@@ -1,6 +1,8 @@
 import datetime
 import json
+import multiprocessing
 import os
+import signal
 import subprocess
 import tempfile
 import threading
@@ -140,12 +142,15 @@ def start_single(host: str, tpu_version: int, zone: str, preemptible: bool, serv
         try:
             recreate(host, zone, tpu_version, preemptible, service_account, slices, creation_semaphore)
             ctx = creation_callback(host, ctx)
-            threads = [threading.Thread(target=start_fn, args=(ctx, i)) for i in range(slices)]
+            threads = [multiprocessing.Process(target=start_fn, args=(ctx, i)) for i in range(slices)]
             for t in threads:
                 t.start()
 
             while host in tpu_names(zone, preempted=False, unhealthy=False):
                 time.sleep(60)
+            for t in threads:
+                if t.is_alive():
+                    os.kill(t.pid, signal.SIGINT)
 
         except KeyboardInterrupt:
             print(f"{host} - {datetime.datetime.now()}: KeyboardInterrupt received. Killing TPU, then self.")
