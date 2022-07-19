@@ -69,11 +69,15 @@ def valid_tpu(tpu: dict, preempted: bool = True, deleting: bool = False, unhealt
     return state and healthy
 
 
-def tpu_names(zone: str, preempted: bool = True, deleting: bool = False, unhealthy: bool = False, prefix: str = ''):
+def tpu_names(zone: str, preempted: bool = True, deleting: bool = False, unhealthy: bool = False,
+              no_filter: bool = False, prefix: str = ''):
     while True:
         try:
             tpus = all_tpus(zone)
-            tpus = [t['name'].split('/')[-1] for t in tpus if valid_tpu(t, preempted, deleting, unhealthy)]
+            if no_filter:
+                tpus = [t['name'].split('/')[-1] for t in tpus]
+            else:
+                tpus = [t['name'].split('/')[-1] for t in tpus if valid_tpu(t, preempted, deleting, unhealthy)]
             return [t for t in tpus if t.startswith(prefix)]
         except KeyboardInterrupt as exc:
             raise exc
@@ -117,10 +121,9 @@ def create_tpu(host: str, zone: str, tpu_version: int, preemptible: bool, servic
 
 def recreate(host: str, zone: str, tpu_version: int, preemptible: bool, service_account: str, slices: int,
              creation_semaphore: typing.Optional[typing.ContextManager] = None):
-    if host in tpu_names(zone, preempted=True, deleting=True, unhealthy=True):
-        if host not in tpu_names(zone, preempted=True, deleting=False, unhealthy=True):
-            synchronous_deletion("", host, zone)
-        while host in tpu_names(zone, preempted=True, deleting=True, unhealthy=True):
+    if host in tpu_names(zone, no_filter=True):
+        synchronous_deletion("", host, zone)
+        while host in tpu_names(zone, no_filter=True):
             time.sleep(5)
     create_tpu(host, zone, tpu_version, preemptible, service_account, creation_semaphore, slices)
 
@@ -140,8 +143,6 @@ def start_single(host: str, tpu_version: int, zone: str, preemptible: bool, serv
             threads = [threading.Thread(target=start_fn, args=(ctx, i)) for i in range(slices)]
             for t in threads:
                 t.start()
-            for t in threads:
-                t.join()
 
             while host in tpu_names(zone, preempted=False, unhealthy=False):
                 time.sleep(60)
