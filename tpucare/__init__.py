@@ -62,13 +62,17 @@ def all_tpus(zone: str):
     return GLOBAL_DICT[f"tpus_{zone}"]
 
 
-def tpu_names(zone: str, preempted: bool = True, deleting: bool = False, prefix: str = ''):
+def valid_tpu(tpu: dict, preempted: bool = True, deleting: bool = False, unhealthy: bool = True) -> bool:
+    state = "state" in tpu and (deleting or tpu['state'] != "DELETING") and (preempted or tpu['state'] != "PREEMPTED")
+    healthy = "health" in tpu and (unhealthy or tpu["health"] == "HEALTHY")
+    return state and healthy
+
+
+def tpu_names(zone: str, preempted: bool = True, deleting: bool = False, unhealthy: bool = False, prefix: str = ''):
     while True:
         try:
             tpus = all_tpus(zone)
-            tpus = [t['name'].split('/')[-1] for t in tpus if
-                    "state" in t and (deleting or t['state'] != "DELETING") and (
-                            preempted or t['state'] != "PREEMPTED")]
+            tpus = [t['name'].split('/')[-1] for t in tpus if valid_tpu(t, preempted, deleting, unhealthy)]
             return [t for t in tpus if t.startswith(prefix)]
         except KeyboardInterrupt as exc:
             raise exc
@@ -112,10 +116,10 @@ def create_tpu(host: str, zone: str, tpu_version: int, preemptible: bool, servic
 
 def recreate(host: str, zone: str, tpu_version: int, preemptible: bool, service_account: str, slices: int,
              creation_semaphore: typing.Optional[typing.ContextManager] = None):
-    if host in tpu_names(zone, preempted=True, deleting=True):
-        if host not in tpu_names(zone, preempted=True, deleting=False):
+    if host in tpu_names(zone, preempted=True, deleting=True, unhealthy=True):
+        if host not in tpu_names(zone, preempted=True, deleting=False, unhealthy=True):
             synchronous_deletion("", host, zone)
-        while host in tpu_names(zone, preempted=True, deleting=True):
+        while host in tpu_names(zone, preempted=True, deleting=True, unhealthy=True):
             time.sleep(5)
     create_tpu(host, zone, tpu_version, preemptible, service_account, creation_semaphore, slices)
 
@@ -138,7 +142,7 @@ def start_single(host: str, tpu_version: int, zone: str, preemptible: bool, serv
             for t in threads:
                 t.join()
 
-            while host in tpu_names(zone, preempted=False):
+            while host in tpu_names(zone, preempted=False, unhealthy=False):
                 time.sleep(60)
 
         except KeyboardInterrupt:
