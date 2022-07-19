@@ -142,12 +142,17 @@ def start_single(host: str, tpu_version: int, zone: str, preemptible: bool, serv
         try:
             recreate(host, zone, tpu_version, preemptible, service_account, slices, creation_semaphore)
             ctx = creation_callback(host, ctx)
-            threads = [multiprocessing.Process(target=start_fn, args=(ctx, i)) for i in range(slices)]
+            threads = [multiprocessing.Process(target=start_fn, args=(ctx, i), daemon=True) for i in range(slices)]
             for t in threads:
                 t.start()
-
-            while host in tpu_names(zone, preempted=False, unhealthy=False):
+            unhealthy_timeout = 10
+            while host in tpu_names(zone, preempted=False, unhealthy=True):
                 time.sleep(60)
+                if unhealthy_timeout and host not in tpu_names(zone, preempted=False, unhealthy=False):
+                    unhealthy_timeout -= 1
+                if not unhealthy_timeout:
+                    break
+
             for t in threads:
                 if t.is_alive():
                     os.kill(t.pid, signal.SIGINT)
