@@ -10,7 +10,7 @@ setuptools.setup(
     name='tpucare',
     license='BSD',
     description='Automatically take good care of your preemptible TPUs',
-    version='0.1.6',
+    version='0.1.7',
     long_description=README,
     url='https://github.com/clashluke/tpucare',
     packages=setuptools.find_packages(),
