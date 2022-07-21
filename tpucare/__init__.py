@@ -21,14 +21,19 @@ CACHE_TIME = 10
 
 
 def exec_command(repository: str, wandb_key: typing.Optional[str] = None, branch: str = "main",
-                 setup_command: str = "(bash setup.sh; exit 0)", run_command: str = "bash run.sh"):
+                 setup_command: str = "(bash setup.sh; exit 0)", run_command: str = "bash run.sh",
+                 install_python: bool = True):
     path = repository.split('/')[-1]
     if path.endswith('.git'):
         path = path[:-len('.git')]
-    script = ["sudo apt-get -o DPkg::Lock::Timeout=-1 update",
-              "sudo apt-get -o DPkg::Lock::Timeout=-1 --fix-missing --fix-broken install -y git python3 python3-pip",
-              f"(rm -rf {path} ; pkill -f python3 ; exit 0)", f"git clone --depth 1 --branch {branch} {repository}",
-              f"cd {path}"]
+    script = []
+    if install_python:
+        script.append("sudo apt-get -o DPkg::Lock::Timeout=-1 update")
+        script.append("sudo apt-get -o DPkg::Lock::Timeout=-1 --fix-missing --fix-broken install -y git python3 "
+                      "python3-pip")
+    script.append(f"(rm -rf {path} ; pkill -f python3 ; exit 0)")
+    script.append(f"git clone --depth 1 --branch {branch} {repository}")
+    script.append(f"cd {path}")
     if wandb_key is not None:
         script.append("python3 -m pip install wandb")
         script.append(f"/home/ubuntu/.local/bin/wandb login {wandb_key}")
