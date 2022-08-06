@@ -93,14 +93,14 @@ def tpu_names(zone: str, preempted: bool = True, deleting: bool = False, unhealt
 
 
 def delete_one_tpu(prefix: str, host: str, zone: str, asynchronous: bool = True):
-    if prefix not in host:
+    if prefix not in host or host not in tpu_names(zone, no_filter=True):
         return
     print(f"\x1b[32;1m  DELETING {host}\x1b[0m")
     os.system(f"echo y | gcloud alpha compute tpus tpu-vm delete {host} --zone {zone} {'--async' * asynchronous}")
 
 
 def delete_all(prefix: str, zone: str):
-    while tpu_names(zone, prefix=prefix):
+    while tpu_names(zone, prefix=prefix, no_filter=True):
         threads = [threading.Thread(target=delete_one_tpu, args=(prefix, host, zone, False), daemon=True) for host in
                    tpu_names(zone, prefix=prefix)]
         for t in threads:
