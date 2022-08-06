@@ -57,13 +57,13 @@ def send_to_tpu(host: str, zone: str, filename_on_tpu: str, command: str, worker
 
 
 def exec_on_tpu(host: str, zone: str, command: str, worker: int = 0):
-    log(f"running '{command}' ...", logging.DEBUG)
+    log(f"running '{command}' ...", log_level=logging.DEBUG)
     start_time = time.time()
     ret = subprocess.call(
             ["gcloud", "alpha", "compute", "tpus", "tpu-vm", "ssh", f"ubuntu@{host}", f"--zone", zone, "--command",
              command, "--worker", str(worker)])
     if not ret:
-        log(f"Finished running '{command}' after {time.time() - start_time:.1f}s", logging.DEBUG)
+        log(f"Finished running '{command}' after {time.time() - start_time:.1f}s", log_level=logging.DEBUG)
         return
 
     delete_one_tpu(host, host, zone)
@@ -102,7 +102,7 @@ def tpu_names(zone: str, preempted: bool = True, deleting: bool = False, unhealt
 def delete_one_tpu(prefix: str, host: str, zone: str, asynchronous: bool = True):
     if prefix not in host or host not in tpu_names(zone, no_filter=True):
         return
-    log(f"\x1b[32;1m  DELETING {host}\x1b[0m", logging.INFO)
+    log(f"\x1b[32;1m  DELETING {host}\x1b[0m", log_level=logging.INFO)
     os.system(f"echo y | gcloud alpha compute tpus tpu-vm delete {host} --zone {zone} {'--async' * asynchronous}")
 
 
@@ -140,15 +140,15 @@ def start_single(host: str, tpu_version: int, zone: str, preemptible: bool, serv
     ctx = None
     while True:
         try:
-            log("Recreating TPU", logging.DEBUG)
+            log("Recreating TPU", log_level=logging.DEBUG)
             recreate(host, zone, tpu_version, preemptible, service_account, slices, creation_semaphore)
-            log(f"TPU Created. Calling {creation_callback.__name__=}.", logging.INFO)
+            log(f"TPU Created. Calling {creation_callback.__name__=}.", log_level=logging.INFO)
             ctx = creation_callback(host, ctx)
-            log(f"Callback returned. Launching {start_fn.__name__=}", logging.DEBUG)
+            log(f"Callback returned. Launching {start_fn.__name__=}", log_level=logging.DEBUG)
             threads = [multiprocessing.Process(target=start_fn, args=(ctx, i), daemon=True) for i in range(slices)]
             for t in threads:
                 t.start()
-            log("Started start_fn. Babysitting TPU..", logging.INFO)
+            log("Started start_fn. Babysitting TPU..", log_level=logging.INFO)
             unhealthy_timeout = 600 / CACHE_TIME  # sometimes "unhealthy" resolves itself. Let's wait up to 10 minutes
             while host in tpu_names(zone, preempted=False, unhealthy=True):
                 if unhealthy_timeout <= 0:
@@ -158,15 +158,17 @@ def start_single(host: str, tpu_version: int, zone: str, preemptible: bool, serv
                     unhealthy_timeout = 600 / CACHE_TIME
                 else:
                     unhealthy_timeout -= 1
-            log(f"TPU is {'unhealthy' if unhealthy_timeout <= 0 else 'preempted'}. Recreating it now.", logging.INFO)
+            log(f"TPU is {'unhealthy' if unhealthy_timeout <= 0 else 'preempted'}. Recreating it now.",
+                log_level=logging.INFO)
             for t in threads:
                 if t.is_alive():
                     os.kill(t.pid, signal.SIGINT)
-            log("Sent SIGINT to all workers", logging.INFO)
+            log("Sent SIGINT to all workers", log_level=logging.INFO)
             for t in threads:
                 t.join()
         except KeyboardInterrupt:
-            log(f"{host} - {datetime.datetime.now()}: KeyboardInterrupt received. Killing TPU, then self.", logging.WARN)
+            log(f"{host} - {datetime.datetime.now()}: KeyboardInterrupt received. Killing TPU, then self.",
+                log_level=logging.WARN)
             delete_one_tpu("", host, zone, False)
             return
 
