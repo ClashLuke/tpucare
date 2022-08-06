@@ -99,17 +99,9 @@ def delete_one_tpu(prefix: str, host: str, zone: str, asynchronous: bool = True)
     os.system(f"echo y | gcloud alpha compute tpus tpu-vm delete {host} --zone {zone} {'--async' * asynchronous}")
 
 
-def synchronous_deletion(prefix: str, host: str, zone: str):
-    if prefix not in host:
-        return
-    while host in tpu_names(zone, no_filter=True):
-        if host in tpu_names(zone, deleting=False, unhealthy=True, preempted=True):
-            delete_one_tpu(prefix, host, zone, asynchronous=False)
-
-
 def delete_all(prefix: str, zone: str):
     while tpu_names(zone, prefix=prefix):
-        threads = [threading.Thread(target=synchronous_deletion, args=(prefix, host, zone), daemon=True) for host in
+        threads = [threading.Thread(target=delete_one_tpu, args=(prefix, host, zone, False), daemon=True) for host in
                    tpu_names(zone, prefix=prefix)]
         for t in threads:
             t.start()
@@ -127,7 +119,7 @@ def create_tpu(host: str, zone: str, tpu_version: int, preemptible: bool, servic
 
 def recreate(host: str, zone: str, tpu_version: int, preemptible: bool, service_account: str, slices: int,
              creation_semaphore: typing.Optional[typing.ContextManager] = None):
-    synchronous_deletion("", host, zone)
+    delete_one_tpu("", host, zone, False)
     create_tpu(host, zone, tpu_version, preemptible, service_account, creation_semaphore, slices)
 
 
@@ -157,10 +149,12 @@ def start_single(host: str, tpu_version: int, zone: str, preemptible: bool, serv
             for t in threads:
                 if t.is_alive():
                     os.kill(t.pid, signal.SIGINT)
+            for t in threads:
+                t.join()
 
         except KeyboardInterrupt:
             print(f"{host} - {datetime.datetime.now()}: KeyboardInterrupt received. Killing TPU, then self.")
-            synchronous_deletion("", host, zone)
+            delete_one_tpu("", host, zone, False)
             return
 
 
