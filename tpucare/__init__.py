@@ -92,20 +92,19 @@ def tpu_names(zone: str, preempted: bool = True, deleting: bool = False, unhealt
             pass
 
 
-def delete_one_tpu(prefix: str, host: str, zone: str):
+def delete_one_tpu(prefix: str, host: str, zone: str, asynchronous: bool = True):
     if prefix not in host:
         return
     print(f"\x1b[32;1m  DELETING {host}\x1b[0m")
-    os.system(f"echo y | gcloud alpha compute tpus tpu-vm delete {host} --zone {zone} --async")
+    os.system(f"echo y | gcloud alpha compute tpus tpu-vm delete {host} --zone {zone} {'--async' * asynchronous}")
 
 
 def synchronous_deletion(prefix: str, host: str, zone: str):
     if prefix not in host:
         return
-    while host in tpu_names(zone, deleting=True):
-        if host in tpu_names(zone):
-            delete_one_tpu(prefix, host, zone)
-        time.sleep(CACHE_TIME)
+    while host in tpu_names(zone, no_filter=True):
+        if host in tpu_names(zone, deleting=False, unhealthy=True, preempted=True):
+            delete_one_tpu(prefix, host, zone, asynchronous=False)
 
 
 def delete_all(prefix: str, zone: str):
@@ -128,10 +127,7 @@ def create_tpu(host: str, zone: str, tpu_version: int, preemptible: bool, servic
 
 def recreate(host: str, zone: str, tpu_version: int, preemptible: bool, service_account: str, slices: int,
              creation_semaphore: typing.Optional[typing.ContextManager] = None):
-    if host in tpu_names(zone, no_filter=True):
-        synchronous_deletion("", host, zone)
-        while host in tpu_names(zone, no_filter=True):
-            time.sleep(5)
+    synchronous_deletion("", host, zone)
     create_tpu(host, zone, tpu_version, preemptible, service_account, creation_semaphore, slices)
 
 
@@ -150,13 +146,13 @@ def start_single(host: str, tpu_version: int, zone: str, preemptible: bool, serv
             threads = [multiprocessing.Process(target=start_fn, args=(ctx, i), daemon=True) for i in range(slices)]
             for t in threads:
                 t.start()
-            unhealthy_timeout = 10
+            unhealthy_timeout = 300 / CACHE_TIME  # sometimes "unhealthy" resolves itself. Let's wait up to 5 minutes
             while host in tpu_names(zone, preempted=False, unhealthy=True):
-                time.sleep(60)
-                if unhealthy_timeout and host not in tpu_names(zone, preempted=False, unhealthy=False):
-                    unhealthy_timeout -= 1
-                if not unhealthy_timeout:
+                if unhealthy_timeout <= 0:
                     break
+                time.sleep(CACHE_TIME)
+                if host not in tpu_names(zone, preempted=False, unhealthy=False):
+                    unhealthy_timeout -= 1
 
             for t in threads:
                 if t.is_alive():
