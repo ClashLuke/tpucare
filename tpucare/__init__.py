@@ -101,11 +101,17 @@ def tpu_names(zone: str, preempted: bool = True, deleting: bool = False, unhealt
             pass
 
 
+def delete_no_check(host: str, zone: str, asynchronous: bool):
+    os.system(f"echo y | gcloud alpha compute tpus tpu-vm delete {host} --zone {zone} {'--async' * asynchronous}")
+
+
 def delete_one_tpu(prefix: str, host: str, zone: str, asynchronous: bool = True):
     if prefix not in host or host not in tpu_names(zone, no_filter=True):
         return
     log(f"\x1b[32;1m  DELETING {host}\x1b[0m", log_level=logging.INFO)
-    os.system(f"echo y | gcloud alpha compute tpus tpu-vm delete {host} --zone {zone} {'--async' * asynchronous}")
+    delete_no_check(host, zone, asynchronous)
+    while not asynchronous and host in tpu_names(zone, no_filter=True):
+        delete_no_check(host, zone, asynchronous)
 
 
 def delete_all(prefix: str, zone: str):
@@ -156,7 +162,6 @@ def start_single(host: str, tpu_version: int, zone: str, preemptible: bool, serv
                 if unhealthy_timeout <= 0:
                     break
                 time.sleep(CACHE_TIME)
-                log(host, tpu_names(zone, preempted=False, unhealthy=True), log_level=logging.DEBUG // 2)
                 if host in tpu_names(zone, preempted=False, unhealthy=False):
                     unhealthy_timeout = 600 / CACHE_TIME
                 else:
