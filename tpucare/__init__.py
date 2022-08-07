@@ -24,7 +24,7 @@ LOG_LEVEL = logging.INFO
 
 def log(*message, log_level=1e9):
     if log_level > LOG_LEVEL:
-        print(f'{datetime.datetime.now()} | {" ".join(message)}', flush=True)
+        print(f'{datetime.datetime.now()} | {" ".join(map(str, message))}', flush=True)
 
 
 def exec_command(repository: str, wandb_key: typing.Optional[str] = None, branch: str = "main",
@@ -79,7 +79,9 @@ def all_tpus(zone: str):
 
 def valid_tpu(tpu: dict, preempted: bool = True, deleting: bool = False, unhealthy: bool = True) -> bool:
     state = "state" in tpu and (deleting or tpu['state'] != "DELETING") and (preempted or tpu['state'] != "PREEMPTED")
+    state |= deleting and preempted
     healthy = "health" in tpu and (unhealthy or tpu["health"] == "HEALTHY")
+    healthy |= unhealthy
     return state and healthy
 
 
@@ -154,6 +156,7 @@ def start_single(host: str, tpu_version: int, zone: str, preemptible: bool, serv
                 if unhealthy_timeout <= 0:
                     break
                 time.sleep(CACHE_TIME)
+                log(host, tpu_names(zone, preempted=False, unhealthy=True), log_level=logging.DEBUG // 2)
                 if host in tpu_names(zone, preempted=False, unhealthy=False):
                     unhealthy_timeout = 600 / CACHE_TIME
                 else:
