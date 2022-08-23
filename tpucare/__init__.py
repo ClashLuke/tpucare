@@ -20,7 +20,9 @@ PROJECT = call("gcloud config get project")
 GLOBAL_DICT = {}
 CACHE_TIME = 10
 LOG_LEVEL = logging.INFO
-
+Context = typing.TypeVar("Context")
+All = typing.Literal["all"]
+SliceIndex = typing.Union[All, int]
 
 def log(*message, log_level=1e9):
     if log_level > LOG_LEVEL:
@@ -48,7 +50,7 @@ def exec_command(repository: str, wandb_key: typing.Optional[str] = None, branch
     return ' && '.join(script)
 
 
-def send_to_tpu(host: str, zone: str, filename_on_tpu: str, command: str, worker: int = 0):
+def send_to_tpu(host: str, zone: str, filename_on_tpu: str, command: str, worker: SliceIndex = 0):
     with tempfile.NamedTemporaryFile(mode='w+') as f:
         f.write(command)
         f.flush()
@@ -56,7 +58,7 @@ def send_to_tpu(host: str, zone: str, filename_on_tpu: str, command: str, worker
                   f"--worker {worker}")
 
 
-def exec_on_tpu(host: str, zone: str, command: str, worker: int = 0):
+def exec_on_tpu(host: str, zone: str, command: str, worker: SliceIndex = 0):
     log(f"running '{command}' ...", log_level=logging.DEBUG)
     start_time = time.time()
     ret = subprocess.call(
@@ -139,9 +141,9 @@ def recreate(host: str, zone: str, tpu_version: int, preemptible: bool, service_
 
 
 def start_single(host: str, tpu_version: int, zone: str, preemptible: bool, service_account: str, slices: int,
-                 start_fn: typing.Callable[[typing.Any, int], None],
-                 creation_callback: typing.Callable[[str, typing.Any], typing.Any],
-                 creation_semaphore: typing.Optional[typing.ContextManager] = None):
+                 start_fn: typing.Callable[[Context, SliceIndex], None],
+                 creation_callback: typing.Callable[[str, typing.Optional[Context]], Context],
+                 creation_semaphore: typing.Optional[typing.ContextManager] = None, all_workers: bool = False):
     if creation_semaphore is None:
         creation_semaphore = nullcontext()
 
@@ -153,7 +155,10 @@ def start_single(host: str, tpu_version: int, zone: str, preemptible: bool, serv
             log(f"TPU Created. Calling {creation_callback.__name__=}.", log_level=logging.INFO)
             ctx = creation_callback(host, ctx)
             log(f"Callback returned. Launching {start_fn.__name__=}", log_level=logging.DEBUG)
-            threads = [multiprocessing.Process(target=start_fn, args=(ctx, i), daemon=True) for i in range(slices)]
+            if all_workers:
+                threads = [multiprocessing.Process(target=start_fn, args=(ctx, "all"), daemon=True)]
+            else:
+                threads = [multiprocessing.Process(target=start_fn, args=(ctx, i), daemon=True) for i in range(slices)]
             for t in threads:
                 t.start()
             log("Started start_fn. Babysitting TPU..", log_level=logging.INFO)
