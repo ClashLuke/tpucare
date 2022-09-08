@@ -8,6 +8,7 @@ import subprocess
 import tempfile
 import threading
 import time
+import types
 import typing
 from contextlib import nullcontext
 
@@ -23,6 +24,7 @@ LOG_LEVEL = logging.INFO
 Context = typing.TypeVar("Context")
 All = typing.Literal["all"]
 SliceIndex = typing.Union[All, int]
+
 
 def log(*message, log_level=1e9):
     if log_level > LOG_LEVEL:
@@ -140,6 +142,14 @@ def recreate(host: str, zone: str, tpu_version: int, preemptible: bool, service_
     create_tpu(host, zone, tpu_version, preemptible, service_account, creation_semaphore, slices)
 
 
+def get_name(fn: typing.Callable, base: str):
+    if hasattr(fn, '__name__'):
+        return f"{base} ({fn.__name__})"
+    if not isinstance(fn, types.FunctionType):
+        return get_name(type(fn), base)
+    return base
+
+
 def start_single(host: str, tpu_version: int, zone: str, preemptible: bool, service_account: str, slices: int,
                  start_fn: typing.Callable[[Context, SliceIndex], None],
                  creation_callback: typing.Callable[[str, typing.Optional[Context]], Context],
@@ -148,13 +158,17 @@ def start_single(host: str, tpu_version: int, zone: str, preemptible: bool, serv
         creation_semaphore = nullcontext()
 
     ctx = None
+
+    creation_callback_name = get_name(creation_callback, "creation_callback")
+    start_fn_name = get_name(start_fn, "start_fn")
+
     while True:
         try:
             log("Recreating TPU", log_level=logging.DEBUG)
             recreate(host, zone, tpu_version, preemptible, service_account, slices, creation_semaphore)
-            log(f"TPU Created. Calling {creation_callback.__name__=}.", log_level=logging.INFO)
+            log(f"TPU Created. Calling {creation_callback_name}.", log_level=logging.INFO)
             ctx = creation_callback(host, ctx)
-            log(f"Callback returned. Launching {start_fn.__name__=}", log_level=logging.DEBUG)
+            log(f"Callback returned. Launching {start_fn_name}", log_level=logging.DEBUG)
             if all_workers:
                 threads = [multiprocessing.Process(target=start_fn, args=(ctx, "all"), daemon=True)]
             else:
