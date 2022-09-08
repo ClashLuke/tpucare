@@ -187,12 +187,12 @@ def start_single(host: str, tpu_version: int, zone: str, preemptible: bool, serv
                     unhealthy_timeout -= 1
             log(f"TPU is {'unhealthy' if unhealthy_timeout <= 0 else 'preempted'}. Recreating it now.",
                 log_level=logging.INFO)
-            for t in threads:
-                if t.is_alive():
-                    os.kill(t.pid, signal.SIGINT)
+            while any(t.is_alive() for t in threads):
+                for t in threads:
+                    if t.is_alive():
+                        os.kill(t.pid, signal.SIGINT)
+                time.sleep(0.1)
             log("Sent SIGINT to all workers", log_level=logging.INFO)
-            for t in threads:
-                t.join()
         except KeyboardInterrupt:
             log(f"{host} - {datetime.datetime.now()}: KeyboardInterrupt received. Killing TPU, then self.",
                 log_level=logging.WARN)
