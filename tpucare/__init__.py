@@ -4,6 +4,7 @@ import logging
 import multiprocessing
 import os
 import signal
+import string
 import subprocess
 import tempfile
 import threading
@@ -18,6 +19,7 @@ def call(cmd: str) -> str:
 
 
 PROJECT = call("gcloud config get project")
+TPU_CMD = "gcloud alpha compute tpus tpu-vm"
 GLOBAL_DICT = {}
 CACHE_TIME = 10
 LOG_LEVEL = logging.INFO
@@ -56,7 +58,7 @@ def send_to_tpu(host: str, zone: str, filename_on_tpu: str, command: str, worker
     with tempfile.NamedTemporaryFile(mode='w+') as f:
         f.write(command)
         f.flush()
-        os.system(f"gcloud alpha compute tpus tpu-vm scp {f.name} ubuntu@{host}:~/{filename_on_tpu} --zone {zone} "
+        os.system(f"{TPU_CMD} scp {f.name} ubuntu@{host}:~/{filename_on_tpu} --zone {zone} "
                   f"--worker {worker}")
 
 
@@ -64,8 +66,8 @@ def exec_on_tpu(host: str, zone: str, command: str, worker: SliceIndex = 0):
     log(f"running '{command}' ...", log_level=logging.DEBUG)
     start_time = time.time()
     ret = subprocess.call(
-            ["gcloud", "alpha", "compute", "tpus", "tpu-vm", "ssh", f"ubuntu@{host}", f"--zone", zone, "--command",
-             command, "--worker", str(worker)])
+            TPU_CMD.split(' ') + ["ssh", f"ubuntu@{host}", f"--zone", zone, "--command", command, "--worker",
+                                  str(worker)])
     if not ret:
         log(f"Finished running '{command}' after {time.time() - start_time:.1f}s", log_level=logging.DEBUG)
         return
@@ -77,7 +79,7 @@ def all_tpus(zone: str):
     zone = 'projects/' + PROJECT + '/locations/' + zone
     if GLOBAL_DICT.get(f"last_write_{zone}", 0) < time.time() - CACHE_TIME:
         GLOBAL_DICT[f"last_write_{zone}"] = time.time()
-        GLOBAL_DICT[f"tpus_{zone}"] = json.loads(call(f"gcloud compute tpus list --zone {zone} --format json"))
+        GLOBAL_DICT[f"tpus_{zone}"] = json.loads(call(f"{TPU_CMD} list --zone {zone} --format json"))
     return GLOBAL_DICT[f"tpus_{zone}"]
 
 
@@ -107,6 +109,12 @@ def tpu_names(zone: str, preempted: bool = True, deleting: bool = False, unhealt
 
 def delete_no_check(host: str, zone: str, asynchronous: bool):
     os.system(f"echo y | gcloud alpha compute tpus tpu-vm delete {host} --zone {zone} {'--async' * asynchronous}")
+
+
+def tpu_ips(host: str, zone: str) -> typing.List[str]:
+    ips = call(f'{TPU_CMD} ssh {host} --zone {zone} --quiet --worker all '
+               f'--command "curl -s https://ipinfo.io/ip  ; echo"')
+    return [ip for ip in ips.split('\n') if ip and all(c in string.digits + '.' for c in ip)]
 
 
 def delete_one_tpu(prefix: str, host: str, zone: str, asynchronous: bool = True):
