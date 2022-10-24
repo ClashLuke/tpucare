@@ -65,9 +65,8 @@ def send_to_tpu(host: str, zone: str, filename_on_tpu: str, command: str, worker
 def exec_on_tpu(host: str, zone: str, command: str, worker: SliceIndex = 0) -> str:
     log(f"running '{command}' ...", log_level=logging.DEBUG)
     start_time = time.time()
-    ret = subprocess.run(
-            TPU_CMD.split(' ') + ["ssh", f"ubuntu@{host}", f"--zone", zone, "--command", command, "--worker",
-                                  str(worker)])
+    cmd = TPU_CMD.split(' ') + ["ssh", f"ubuntu@{host}", f"--zone", zone, "--command", command, "--worker", str(worker)]
+    ret = subprocess.run(cmd, capture_output=True)
     out = ret.stdout.rstrip().decode()
     if not ret.returncode:
         log(f"Finished running '{command}' after {time.time() - start_time:.1f}s", log_level=logging.DEBUG)
