@@ -62,17 +62,19 @@ def send_to_tpu(host: str, zone: str, filename_on_tpu: str, command: str, worker
                   f"--worker {worker}")
 
 
-def exec_on_tpu(host: str, zone: str, command: str, worker: SliceIndex = 0):
+def exec_on_tpu(host: str, zone: str, command: str, worker: SliceIndex = 0) -> str:
     log(f"running '{command}' ...", log_level=logging.DEBUG)
     start_time = time.time()
-    ret = subprocess.call(
+    ret = subprocess.run(
             TPU_CMD.split(' ') + ["ssh", f"ubuntu@{host}", f"--zone", zone, "--command", command, "--worker",
                                   str(worker)])
-    if not ret:
+    out = ret.stdout.rstrip().decode()
+    if not ret.returncode:
         log(f"Finished running '{command}' after {time.time() - start_time:.1f}s", log_level=logging.DEBUG)
-        return
+        return out
 
     delete_one_tpu(host, host, zone)
+    return out
 
 
 def all_tpus(zone: str):
@@ -112,8 +114,7 @@ def delete_no_check(host: str, zone: str, asynchronous: bool):
 
 
 def tpu_ips(host: str, zone: str) -> typing.List[str]:
-    ips = call(f'{TPU_CMD} ssh {host} --zone {zone} --quiet --worker all '
-               f'--command "curl -s https://ipinfo.io/ip  ; echo"')
+    ips = exec_on_tpu(host, zone, "curl -s https://ipinfo.io/ip  ; echo", "all")
     return [ip for ip in ips.split('\n') if ip and all(c in string.digits + '.' for c in ip)]
 
 
