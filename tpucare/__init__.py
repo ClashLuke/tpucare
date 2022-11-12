@@ -4,7 +4,6 @@ import logging
 import multiprocessing
 import os
 import signal
-import string
 import subprocess
 import tempfile
 import threading
@@ -113,8 +112,8 @@ def delete_no_check(host: str, zone: str, asynchronous: bool):
 
 
 def tpu_ips(host: str, zone: str) -> typing.List[str]:
-    ips = exec_on_tpu(host, zone, "curl -s https://ipinfo.io/ip  ; echo", "all")
-    return [ip for ip in ips.split('\n') if ip and all(c in string.digits + '.' for c in ip)]
+    out = call(f"gcloud alpha compute tpus tpu-vm describe {host} --format json --zone {zone}")
+    return [host["accessConfig"]["externalIp"] for host in json.loads(out)["networkEndpoints"]]
 
 
 def delete_one_tpu(prefix: str, host: str, zone: str, asynchronous: bool = True):
