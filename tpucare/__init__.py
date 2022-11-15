@@ -17,6 +17,19 @@ def call(cmd: str) -> str:
     return subprocess.check_output(cmd.split()).rstrip().decode()
 
 
+class CallReturnError(ValueError):
+    pass
+
+
+def retry_call(cmd: typing.List[str], retries: int = -2):
+    while retries != -1:
+        ret = subprocess.run(cmd, capture_output=True)
+        out = ret.stdout.rstrip().decode()
+        if not ret.returncode:
+            return out
+    raise ValueError
+
+
 PROJECT = call("gcloud config get project")
 TPU_CMD = "gcloud alpha compute tpus tpu-vm"
 GLOBAL_DICT = {}
@@ -53,25 +66,29 @@ def exec_command(repository: str, wandb_key: typing.Optional[str] = None, branch
     return ' && '.join(script)
 
 
+def retry_delete(host: str, zone: str, cmd: typing.List[str], retries: int = -2):
+    try:
+        return retry_call(cmd, retries)
+    except CallReturnError:
+        delete_one_tpu(host, host, zone)
+        return ""
+
+
 def send_to_tpu(host: str, zone: str, filename_on_tpu: str, command: str, worker: SliceIndex = 0):
     with tempfile.NamedTemporaryFile(mode='w+') as f:
         f.write(command)
         f.flush()
-        os.system(f"{TPU_CMD} scp {f.name} ubuntu@{host}:~/{filename_on_tpu} --zone {zone} "
-                  f"--worker {worker}")
+        cmd = TPU_CMD.split(' ') + ["scp", f.name, f"ubuntu@{host}:~/{filename_on_tpu}", "--zone", zone, "--worker",
+                                    str(worker)]
+        retry_delete(host, zone, cmd, 4)
 
 
 def exec_on_tpu(host: str, zone: str, command: str, worker: SliceIndex = 0) -> str:
     log(f"running '{command}' ...", log_level=logging.DEBUG)
     start_time = time.time()
     cmd = TPU_CMD.split(' ') + ["ssh", f"ubuntu@{host}", f"--zone", zone, "--command", command, "--worker", str(worker)]
-    ret = subprocess.run(cmd, capture_output=True)
-    out = ret.stdout.rstrip().decode()
-    if not ret.returncode:
-        log(f"Finished running '{command}' after {time.time() - start_time:.1f}s", log_level=logging.DEBUG)
-        return out
-
-    delete_one_tpu(host, host, zone)
+    out = retry_delete(host, zone, cmd, 2)
+    log(f"Finished running '{command}' after {time.time() - start_time:.1f}s", log_level=logging.DEBUG)
     return out
 
 
@@ -108,11 +125,11 @@ def tpu_names(zone: str, preempted: bool = True, deleting: bool = False, unhealt
 
 
 def delete_no_check(host: str, zone: str, asynchronous: bool):
-    os.system(f"echo y | gcloud alpha compute tpus tpu-vm delete {host} --zone {zone} {'--async' * asynchronous}")
+    os.system(f"echo y | {TPU_CMD} delete {host} --zone {zone} {'--async' * asynchronous}")
 
 
 def tpu_ips(host: str, zone: str) -> typing.List[str]:
-    out = call(f"gcloud alpha compute tpus tpu-vm describe {host} --format json --zone {zone}")
+    out = call(f"{TPU_CMD} describe {host} --format json --zone {zone}")
     return [host["accessConfig"]["externalIp"] for host in json.loads(out)["networkEndpoints"]]
 
 
