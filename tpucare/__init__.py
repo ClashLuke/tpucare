@@ -63,7 +63,7 @@ def exec_command(repository: str, wandb_key: typing.Optional[str] = None, branch
         script.append("python3 -m pip install wandb")
         script.append(f"/home/ubuntu/.local/bin/wandb login {wandb_key}")
     script.extend([setup_command, f'screen -dmS model bash -c "cd {path} ; {run_command}"'])
-    return ' && '.join(script)
+    return ' &&\\\n'.join(script)
 
 
 def retry_delete(host: str, zone: str, cmd: typing.List[str], retries: int = -2):
