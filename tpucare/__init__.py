@@ -1,4 +1,5 @@
 import datetime
+import inspect
 import json
 import logging
 import multiprocessing
@@ -11,6 +12,7 @@ import time
 import types
 import typing
 from contextlib import nullcontext
+from typing import Callable
 
 
 def call(cmd: str) -> str:
@@ -23,9 +25,14 @@ class CallReturnError(ValueError):
 
 def retry_call(cmd: typing.List[str], retries: int = -2):
     while retries != -1:
-        ret = subprocess.run(cmd, capture_output=True)
-        out = ret.stdout.rstrip().decode()
-        if not ret.returncode:
+        retries -= 1
+        popen = subprocess.Popen(cmd, stdout=subprocess.PIPE, universal_newlines=True)
+        out = ""
+        for stdout_line in iter(popen.stdout.readline, ""):
+            out += f'{out}'
+            log(stdout_line.rstrip(), log_level=logging.DEBUG)
+        popen.stdout.close()
+        if not popen.wait():
             return out
     raise ValueError
 
@@ -57,10 +64,11 @@ def exec_command(repository: str, wandb_key: typing.Optional[str] = None, branch
         script.append("sudo apt-get -o DPkg::Lock::Timeout=-1 --fix-missing --fix-broken install -y git python3 "
                       "python3-pip")
     script.append(f"(rm -rf {path} ; pkill -f python3 ; exit 0)")
+    script.append(f"python3 -m pip install --upgrade pip")
     script.append(f"git clone --depth 1 --branch {branch} {repository}")
     script.append(f"cd {path}")
     if wandb_key is not None:
-        script.append("python3 -m pip install wandb")
+        script.append("python3 -m pip install --upgrade wandb typer click")
         script.append(f"/home/ubuntu/.local/bin/wandb login {wandb_key}")
     script.extend([setup_command, f'screen -dmS model bash -c "cd {path} ; {run_command}"'])
     return ' &&\\\n'.join(script)
@@ -74,6 +82,26 @@ def retry_delete(host: str, zone: str, cmd: typing.List[str], retries: int = -2)
         return ""
 
 
+def log_entry(prefix: str, fmt: Callable):
+    def _fn(fn: Callable):
+        signature = inspect.signature(fn).parameters
+
+        def _inner(*args, **kwargs):
+            for a, s in zip(args, signature.keys()):
+                kwargs[s] = a
+            txt = f"{prefix} {fmt(kwargs)}"
+            log(f"{txt} ...", log_level=logging.INFO)
+            start_time = time.time()
+            out = fn(**kwargs)
+            log(f"finished {txt} after {time.time() - start_time:.1f}s", log_level=logging.INFO)
+            return out
+
+        return _inner
+
+    return _fn
+
+
+@log_entry("sending", lambda x: f"'{x['filename_on_tpu']}'")
 def send_to_tpu(host: str, zone: str, filename_on_tpu: str, command: str, worker: SliceIndex = 0):
     with tempfile.NamedTemporaryFile(mode='w+') as f:
         f.write(command)
@@ -83,13 +111,10 @@ def send_to_tpu(host: str, zone: str, filename_on_tpu: str, command: str, worker
         retry_delete(host, zone, cmd, 4)
 
 
+@log_entry("running", lambda x: f"'{x['command']}'")
 def exec_on_tpu(host: str, zone: str, command: str, worker: SliceIndex = 0) -> str:
-    log(f"running '{command}' ...", log_level=logging.DEBUG)
-    start_time = time.time()
     cmd = TPU_CMD.split(' ') + ["ssh", f"ubuntu@{host}", f"--zone", zone, "--command", command, "--worker", str(worker)]
-    out = retry_delete(host, zone, cmd, 2)
-    log(f"Finished running '{command}' after {time.time() - start_time:.1f}s", log_level=logging.DEBUG)
-    return out
+    return retry_delete(host, zone, cmd, 2)
 
 
 def all_tpus(zone: str):
@@ -188,11 +213,11 @@ def start_single(host: str, tpu_version: int, zone: str, preemptible: bool, serv
 
     while True:
         try:
-            log("Recreating TPU", log_level=logging.DEBUG)
+            log("Recreating TPU", log_level=logging.INFO)
             recreate(host, zone, tpu_version, preemptible, service_account, slices, creation_semaphore)
             log(f"TPU Created. Calling {creation_callback_name}.", log_level=logging.INFO)
             ctx = creation_callback(host, ctx)
-            log(f"Callback returned. Launching {start_fn_name}", log_level=logging.DEBUG)
+            log(f"Callback returned. Launching {start_fn_name}", log_level=logging.INFO)
             if all_workers:
                 threads = [multiprocessing.Process(target=start_fn, args=(ctx, "all"), daemon=True)]
             else:
@@ -231,8 +256,8 @@ def start_multiple(prefix: str, tpu_version: int, zone: str, preemptible: bool, 
     creation_semaphore = threading.Semaphore(2)
     for tpu_id in range(tpus):
         proc = threading.Thread(target=start_single, daemon=True, args=(
-                f'{prefix}-{tpu_id}', tpu_version, zone, preemptible, service_account, slices, start_fn,
-                created_callback, creation_semaphore))
+            f'{prefix}-{tpu_id}', tpu_version, zone, preemptible, service_account, slices, start_fn, created_callback,
+            creation_semaphore))
         proc.start()
         procs.append(proc)
     while all(t.is_alive() for t in procs):
