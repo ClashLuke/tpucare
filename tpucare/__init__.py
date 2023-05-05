@@ -202,7 +202,8 @@ def get_name(fn: typing.Callable, base: str):
 def start_single(host: str, tpu_version: int, zone: str, preemptible: bool, service_account: str, slices: int,
                  start_fn: typing.Callable[[Context, SliceIndex], None],
                  creation_callback: typing.Callable[[str, typing.Optional[Context]], Context],
-                 creation_semaphore: typing.Optional[typing.ContextManager] = None, all_workers: bool = False):
+                 creation_semaphore: typing.Optional[typing.ContextManager] = None, all_workers: bool = False,
+                 unhealthy_timeout_seconds=3600):
     if creation_semaphore is None:
         creation_semaphore = nullcontext()
 
@@ -210,6 +211,7 @@ def start_single(host: str, tpu_version: int, zone: str, preemptible: bool, serv
 
     creation_callback_name = get_name(creation_callback, "creation_callback")
     start_fn_name = get_name(start_fn, "start_fn")
+    unhealthy_timeout_seconds /= CACHE_TIME
 
     while True:
         try:
@@ -225,17 +227,16 @@ def start_single(host: str, tpu_version: int, zone: str, preemptible: bool, serv
             for t in threads:
                 t.start()
             log("Started start_fn. Babysitting TPU..", log_level=logging.INFO)
-            unhealthy_timeout = 600 / CACHE_TIME  # sometimes "unhealthy" resolves itself. Let's wait up to 10 minutes
+            retries = unhealthy_timeout_seconds  # sometimes "unhealthy" resolves itself. Let's wait
             while host in tpu_names(zone, preempted=False, unhealthy=True):
-                if unhealthy_timeout <= 0:
+                if retries <= 0:
                     break
                 time.sleep(CACHE_TIME)
                 if host in tpu_names(zone, preempted=False, unhealthy=False):
-                    unhealthy_timeout = 600 / CACHE_TIME
+                    retries = unhealthy_timeout_seconds
                 else:
-                    unhealthy_timeout -= 1
-            log(f"TPU is {'unhealthy' if unhealthy_timeout <= 0 else 'preempted'}. Recreating it now.",
-                log_level=logging.INFO)
+                    retries -= 1
+            log(f"TPU is {'unhealthy' if retries <= 0 else 'preempted'}. Recreating it now.", log_level=logging.INFO)
             while any(t.is_alive() for t in threads):
                 for t in threads:
                     if t.is_alive():
