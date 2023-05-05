@@ -128,8 +128,7 @@ def all_tpus(zone: str):
 def valid_tpu(tpu: dict, preempted: bool = True, deleting: bool = False, unhealthy: bool = True) -> bool:
     state = "state" in tpu and (deleting or tpu['state'] != "DELETING") and (preempted or tpu['state'] != "PREEMPTED")
     state |= deleting and preempted
-    healthy = "health" in tpu and (unhealthy or tpu["health"] == "HEALTHY")
-    healthy |= unhealthy
+    healthy = unhealthy or "health" not in tpu or tpu["health"] == "HEALTHY"  # we assume no health info == good
     return state and healthy
 
 
