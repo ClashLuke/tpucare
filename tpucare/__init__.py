@@ -12,7 +12,7 @@ import time
 import types
 import typing
 from contextlib import nullcontext
-from typing import Callable
+from typing import Callable, List, Optional
 
 
 def call(cmd: str) -> str:
@@ -54,7 +54,7 @@ def log(*message, log_level=1e9):
 
 def exec_command(repository: str, wandb_key: typing.Optional[str] = None, branch: str = "main",
                  setup_command: str = "(bash setup.sh; exit 0)", run_command: str = "bash run.sh",
-                 install_python: bool = True):
+                 install_python: bool = True, pkilled: Optional[List[str]] = None):
     path = repository.split('/')[-1]
     if path.endswith('.git'):
         path = path[:-len('.git')]
@@ -70,7 +70,16 @@ def exec_command(repository: str, wandb_key: typing.Optional[str] = None, branch
     if wandb_key is not None:
         script.append("python3 -m pip install --upgrade wandb typer click")
         script.append(f"/home/ubuntu/.local/bin/wandb login {wandb_key}")
-    script.extend([setup_command, f'screen -dmS model bash -c "cd {path} ; {run_command}"'])
+    script.append(setup_command)
+    start_command = f'screen -dmS model bash -c "cd {path} ; git pull ; {run_command}"'
+    script.append(start_command)
+    if pkilled is None:
+        pkilled = []
+    if pkilled:
+        pkilled = ' ; '.join(f'pkill -f {k}' for k in pkilled)
+        script.append(f"echo '{pkilled} ; sleep 30 ; {pkilled} ; {start_command} ; screen -r model' >> .bashrc")
+    else:
+        script.append(f"echo '{start_command} ; screen -r model' >> .bashrc")
     return ' &&\\\n'.join(script)
 
 
